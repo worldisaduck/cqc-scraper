@@ -9,36 +9,41 @@ module WebScraper
 
     def scrap
       @current_page = 1
-
-      puts "Scraping page ##{@current_page}..."
-      care_houses_raw.each { |html| binding.pry; @care_houses << WebScraper::CareHouse.new(html) }
-      puts 'Done!'
+      parse_page
 
       @number_of_pages[1..-1].each do |page|
         @current_page = page
-        puts "Scrapping page ##{@current_page}"
-        care_houses_raw.each { |html| @care_houses << WebScraper::CareHouse.new(html) }
-        puts 'Done!'
+        parse_page
       end
+
+      self
     end
 
     protected
 
-    def care_houses_raw
-      parsed_page.css('.result-item')
-    end
-
-    def parsed_page
+    def parse_page
       raw_html = HTTParty.get(uri(@current_page))
-      @parsed_page = Nokogiri::HTML(raw_html)
+      parsed_page = Nokogiri::HTML(raw_html)
+      care_houses_raw = parsed_page.css('.result-item')
+      
+      @number_of_pages ||= parsed_page.css('.pager').children.map(&:text).select { |li| li.match /\d/ }
+
+      puts '* ' * 25
+      puts "Scrapping page ##{@current_page} of city - #{@name}"
+      puts '* ' * 25
+      puts ''
+      
+      care_houses_raw.each do |html|
+        parsed_data = WebScraper::CareHouse.new(html)
+        @care_houses << parsed_data
+        puts "#{parsed_data.name} is finished."
+      end
+      puts 'Page is finished!'
+      puts ''
     end
 
     def uri(page)
       "https://www.cqc.org.uk/search/services/care-homes?page=#{page}&location=#{URI.encode(@name)}"
-    end
-
-    def number_of_pages
-      @number_of_pages ||= parsed_page.css('.pager').children.map(&:text).select { |li| li.match /\d/ }
     end
   end
 end
