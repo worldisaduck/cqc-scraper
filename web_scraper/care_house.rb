@@ -25,6 +25,8 @@ module WebScraper
       }
     end
 
+    private
+
     def get_data
       name = raw_html.css('.facility-name').children.first.text.strip
       address, phone_number, provider = parse_details
