@@ -9,6 +9,6 @@ main_page = Nokogiri::HTML(response)
 
 cities = main_page.at('select#edit-authority').children.map { |option| option.values.first }
 
-parsed_cities = cities.map do |city|
+data = cities.map do |city|
   WebScraper::City.new(city).scrap
 end
