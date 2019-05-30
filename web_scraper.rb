@@ -11,7 +11,7 @@ cities = main_page.at('select#edit-authority').children.map { |option| option.va
 
 threads = []
 
-data = cities[0..1].map do |city|
+cities.each do |city|
   threads << Thread.new(city) do
     WebScraper::City.new(city).scrap
   end
