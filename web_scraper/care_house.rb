@@ -63,6 +63,9 @@ module WebScraper
         name = person_info.first.strip
         hash[role] = name
       end
+
+      rescue Net::OpenTimeout
+        nil        
     end
   end
 end

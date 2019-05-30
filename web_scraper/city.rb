@@ -1,49 +1,66 @@
 module WebScraper
   class City
-    attr_reader :name, :care_houses
+    attr_reader :city, :care_houses
 
-    def initialize(name)
-      @name = name
+    def initialize(city)
+      @city = city
       @care_houses = []
     end
 
     def scrap
-      @current_page = 1
-      parse_page
+      parse_page(0)
 
-      @number_of_pages[1..-1].each do |page|
-        @current_page = page
-        parse_page
-      end
-
+      @care_houses = @care_houses.map { |house| house.value }
       self
     end
 
     protected
 
-    def parse_page
-      raw_html = HTTParty.get(uri(@current_page))
-      parsed_page = Nokogiri::HTML(raw_html)
-      care_houses_raw = parsed_page.css('.result-item')
-      
-      @number_of_pages ||= parsed_page.css('.pager').children.map(&:text).select { |li| li.match /\d/ }
+    def parse_page(page_num)
+      return if page_num.nil?
+      parsed_page = Nokogiri::HTML(HTTParty.get(uri(page_num)))
 
-      puts '* ' * 25
-      puts "Scrapping page ##{@current_page} of city - #{@name}"
-      puts '* ' * 25
-      puts ''
+      return if parsed_page.at("h2:contains(\"Still can't find what you want?\")")
+
+      care_houses = parsed_page.css('.result-item')
       
-      care_houses_raw.each do |html|
-        parsed_data = WebScraper::CareHouse.new(html)
-        @care_houses << parsed_data
-        puts "#{parsed_data.name} is finished."
+      puts '* ' * 25
+      puts "Scrapping page ##{page_num + 1} of city - #{city}"
+      puts "#{'* ' * 25}\n\n"
+      
+      threads = []
+
+      care_houses.each do |html|
+        threads << Thread.new(html) do |html|
+          begin
+            parsed_data = WebScraper::CareHouse.new(html)
+            puts "#{parsed_data.name} is finished."
+            
+            parsed_data
+          rescue Net::OpenTimeout
+            next
+          end
+        end 
       end
-      puts 'Page is finished!'
-      puts ''
+      
+      @care_houses = (@care_houses << threads.each(&:join)).flatten
+
+      puts "Page is finished!\n\n"
+
+      parse_page(next_page_num(parsed_page))
     end
 
-    def uri(page)
-      "https://www.cqc.org.uk/search/services/care-homes?page=#{page}&location=#{URI.encode(@name)}"
+    def next_page_num(page_html)
+      pagination = page_html.css('.pager')
+      
+      current_page = pagination.css('.pager__item--current').text.to_i - 1
+      last_page = pagination.css('li')[-1].text.to_i
+
+      current_page != 0 && current_page == last_page ? nil : current_page + 1
+    end
+
+    def uri(page_num)
+      "https://www.cqc.org.uk/search/services/care-homes?page=#{page_num}&location=#{URI.encode(city)}"
     end
   end
 end
